@@ -3,6 +3,7 @@ import json
 import config
 from random import randint
 import unidecode
+import time
 
 import logging
 from telegram import Update
@@ -58,16 +59,29 @@ def callback_compare_files(context: telegram.ext.CallbackContext):
     if ammounts != None and ammounts["dona"]:
         for message in ammounts["dona"]:
             ammounts["start_amount"] += int(message)
-            context.bot.send_message(chat_id=context.job.context.chat_id, text=str(message) + " € lahjoitettu! 🎉 Kiitos!" +emoji_list[randint(0, len(emoji_list) - 1)] +" Lahjoituksia yhteensä " + str(ammounts["start_amount"]) + " €. " + str(round(100 * (ammounts["start_amount"] + 1600) / 6000)) + "% saavutettu(6000 €)")
+            context.bot.send_message(chat_id=context.job.context.chat_id, text=str(message) + " € lahjoitettu! 🎉 Kiitos!" +emoji_list[randint(0, len(emoji_list) - 1)] +" Lahjoituksia yhteensä " + str(ammounts["start_amount"]) + " €. " + str(round(100 * (ammounts["start_amount"] + 1600) / 4000)) + "% saavutettu(4000 €)")
+            time.sleep(1)
         write_json_file(mese_json, file_name)
 
-def callback_timer(update: telegram.Update, context: telegram.ext.CallbackContext):
-    context.job_queue.run_repeating(callback_compare_files, 60*30, first = 1, context=update.message)
+def callback_timer(update, context):
+    job_name = "mesenaatti_job" + str(update.message.chat_id)
+    # print(context.job_queue.jobs())
+    # print(context.job_queue.get_jobs_by_name(job_name))
+    if len(context.job_queue.get_jobs_by_name(job_name)) == 0:
+        context.job_queue.run_repeating(callback_compare_files, 10*1, first = 1, context=update.message, name=job_name)
+
+def Stop_timer(update, context):
+    job = context.job_queue.get_jobs_by_name("mesenaatti_job" + str(update.message.chat_id))
+    if len(job) == 1:
+        context.bot.send_message(chat_id=update.message.chat_id,
+        text='Pysäytetty!')
+        job[0].schedule_removal()
 
 def main():
     updater = Updater(config.TOKEN, use_context=True)
     dp = updater.dispatcher
-    updater.dispatcher.add_handler(CommandHandler('aloita_clippy', callback_timer, Filters.user(username="@Karli_K")))
+    updater.dispatcher.add_handler(CommandHandler('aloita_clippy', callback_timer, Filters.user(username="@Karli_K"), pass_job_queue=True))
+    updater.dispatcher.add_handler(CommandHandler('pysayta', Stop_timer, Filters.user(username="@Karli_K"), pass_job_queue=True))
     updater.start_polling()
 
     updater.idle()
